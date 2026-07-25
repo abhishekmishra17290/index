@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atmos — Weather</title> 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #14131f;
+    --paper: #f3f1ec;
+    --dusk: #2c2a4a;
+    --dawn: #f2a65a;
+    --storm: #5c7ca8;
+    --coral: #e2584f;
+    --mist: rgba(20,19,31,0.08);
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    font-family:'Space Grotesk', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: 32px 16px;
+  }
+
+  .app{
+    width:100%;
+    max-width: 480px;
+    background: var(--ink);
+    border-radius: 28px;
+    overflow:hidden;
+    box-shadow: 0 30px 60px -20px rgba(20,19,31,0.35);
+    position: relative;
+  }
+
+  .sky{
+    position:relative;
+    padding: 28px 28px 40px;
+    color: var(--paper);
+    background: linear-gradient(160deg, var(--dusk) 0%, var(--storm) 55%, var(--dawn) 130%);
+    background-size: 200% 200%;
+    animation: drift 18s ease-in-out infinite;
+    transition: filter 0.5s ease;
+  }
+  @keyframes drift{
+    0%{ background-position: 0% 20%; }
+    50%{ background-position: 100% 80%; }
+    100%{ background-position: 0% 20%; }
+  }
+
+  .searchRow{
+    display:flex;
+    gap:8px;
+    margin-bottom: 26px;
+  }
+  .searchRow input{
+    flex:1;
+    background: rgba(243,241,236,0.14);
+    border: 1px solid rgba(243,241,236,0.3);
+    border-radius: 999px;
+    padding: 10px 18px;
+    color: var(--paper);
+    font-family:'Space Grotesk', sans-serif;
+    font-size: 14px;
+    outline:none;
+  }
+  .searchRow input::placeholder{ color: rgba(243,241,236,0.6); }
+  .searchRow button{
+    background: var(--coral);
+    color: var(--paper);
+    border:none;
+    border-radius: 999px;
+    padding: 10px 20px;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    font-size: 13px;
+    cursor:pointer;
+    transition: transform 0.15s ease, background 0.2s ease;
+  }
+  .searchRow button:hover{ transform: translateY(-1px); background:#c94840; }
+  .searchRow button:active{ transform: translateY(0); }
+
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 11px;
+    opacity: 0.75;
+    margin-bottom: 6px;
+  }
+  .place{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-size: 26px;
+    margin-bottom: 18px;
+  }
+
+  .heroRow{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap: 12px;
+  }
+  .temp{
+    font-family:'Fraunces', serif;
+    font-optical-sizing: auto;
+    font-weight:300;
+    font-size: 84px;
+    line-height: 0.9;
+    letter-spacing: -0.02em;
+  }
+  .temp sup{ font-size: 34px; font-weight:300; opacity:0.85; }
+  .condWrap{ text-align:right; }
+  .condIcon{ font-size: 46px; line-height:1; margin-bottom:6px; }
+  .cond{ font-size: 14px; text-transform:capitalize; opacity:0.9; }
+  .feels{ font-family:'JetBrains Mono', monospace; font-size: 11px; opacity:0.65; margin-top:4px; }
+
+  .details{
+    background: var(--paper);
+    padding: 22px 24px 26px;
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .stat{
+    border-top: 1px solid var(--mist);
+    padding-top: 10px;
+  }
+  .stat .label{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    opacity: 0.55;
+    margin-bottom: 4px;
+  }
+  .stat .value{
+    font-size: 17px;
+    font-weight: 600;
+  }
+
+  .status{
+    padding: 60px 24px;
+    text-align:center;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 13px;
+    opacity: 0.75;
+    color: var(--paper);
+  }
+  .status.error{ color: #ffd7d3; }
+
+  .hidden{ display:none !important; }
+
+  @media (max-width: 380px){
+    .temp{ font-size: 64px; }
+    .details{ grid-template-columns: repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="sky" id="sky">
+    <div class="searchRow">
+      <input id="cityInput" type="text" placeholder="Search a city…" value="Delhi">
+      <button id="searchBtn">Find</button>
+    </div>
+
+    <div id="loading" class="status hidden">reading the sky…</div>
+    <div id="errorBox" class="status error hidden"></div>
+
+    <div id="content" class="hidden">
+      <div class="eyebrow" id="dateLine">—</div>
+      <div class="place" id="placeName">—</div>
+
+      <div class="heroRow">
+        <div class="temp" id="tempValue">—<sup>°C</sup></div>
+        <div class="condWrap">
+          <div class="condIcon" id="condIcon">–</div>
+          <div class="cond" id="condText">—</div>
+          <div class="feels" id="feelsLike">feels like —</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="details" id="detailsGrid" style="display:none;">
+    <div class="stat"><div class="label">Humidity</div><div class="value" id="humidity">—</div></div>
+    <div class="stat"><div class="label">Wind</div><div class="value" id="wind">—</div></div>
+    <div class="stat"><div class="label">Pressure</div><div class="value" id="pressure">—</div></div>
+    <div class="stat"><div class="label">Visibility</div><div class="value" id="visibility">—</div></div>
+    <div class="stat"><div class="label">Sunrise</div><div class="value" id="sunrise">—</div></div>
+    <div class="stat"><div class="label">Sunset</div><div class="value" id="sunset">—</div></div>
+  </div>
+</div>
+
+<script>
+  const apiKey = "e3f1488be2ea5f38143d4e16185dbbba";
+
+  const $ = (id) => document.getElementById(id);
+  const skyEl = $('sky');
+  const loadingEl = $('loading');
+  const errorEl = $('errorBox');
+  const contentEl = $('content');
+  const detailsGrid = $('detailsGrid');
+
+  const iconMap = {
+    '01d': '☀️', '01n': '🌙',
+    '02d': '⛅', '02n': '☁️',
+    '03d': '☁️', '03n': '☁️',
+    '04d': '☁️', '04n': '☁️',
+    '09d': '🌧️', '09n': '🌧️',
+    '10d': '🌦️', '10n': '🌧️',
+    '11d': '⛈️', '11n': '⛈️',
+    '13d': '❄️', '13n': '❄️',
+    '50d': '🌫️', '50n': '🌫️'
+  };
+
+  const skyPalettes = {
+    clear:  { a:'#f2a65a', b:'#e2584f', c:'#2c2a4a' },
+    clouds: { a:'#5c7ca8', b:'#8fa3bd', c:'#2c2a4a' },
+    rain:   { a:'#3d5a80', b:'#2c2a4a', c:'#1b1f3b' },
+    storm:  { a:'#1b1f3b', b:'#2c2a4a', c:'#5c7ca8' },
+    snow:   { a:'#c9d6df', b:'#5c7ca8', c:'#2c2a4a' },
+    mist:   { a:'#8f9aa8', b:'#5c7ca8', c:'#2c2a4a' }
+  };
+
+  function paletteFor(main){
+    const key = (main || '').toLowerCase();
+    if(key.includes('clear')) return skyPalettes.clear;
+    if(key.includes('cloud')) return skyPalettes.clouds;
+    if(key.includes('rain') || key.includes('drizzle')) return skyPalettes.rain;
+    if(key.includes('thunderstorm')) return skyPalettes.storm;
+    if(key.includes('snow')) return skyPalettes.snow;
+    if(key.includes('mist') || key.includes('fog') || key.includes('haze')) return skyPalettes.mist;
+    return skyPalettes.clouds;
+  }
+
+  function setSky(main){
+    const p = paletteFor(main);
+    skyEl.style.background = `linear-gradient(160deg, ${p.c} 0%, ${p.a} 55%, ${p.b} 130%)`;
+    skyEl.style.backgroundSize = '200% 200%';
+  }
+
+  function fmtTime(unix, tzOffsetSeconds){
+    const d = new Date((unix + tzOffsetSeconds) * 1000);
+    let h = d.getUTCHours();
+    const m = d.getUTCMinutes().toString().padStart(2, '0');
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if(h === 0) h = 12;
+    return `${h}:${m} ${ampm}`;
+  }
+
+  function showLoading(){
+    loadingEl.classList.remove('hidden');
+    errorEl.classList.add('hidden');
+    contentEl.classList.add('hidden');
+    detailsGrid.style.display = 'none';
+  }
+
+  function showError(msg){
+    loadingEl.classList.add('hidden');
+    errorEl.classList.remove('hidden');
+    contentEl.classList.add('hidden');
+    detailsGrid.style.display = 'none';
+    errorEl.textContent = msg;
+  }
+
+  function showContent(){
+    loadingEl.classList.add('hidden');
+    errorEl.classList.add('hidden');
+    contentEl.classList.remove('hidden');
+    detailsGrid.style.display = 'grid';
+  }
+
+  async function fetchWeather(city){
+    showLoading();
+    try{
+      const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${apiKey}&units=metric`;
+      const res = await fetch(url);
+      if(!res.ok){
+        if(res.status === 404){
+          throw new Error(`Couldn't find "${city}". Check the spelling and try again.`);
+        }
+        if(res.status === 401){
+          throw new Error('API key not authorized yet — new OpenWeatherMap keys can take up to a couple hours to activate.');
+        }
+        throw new Error('Something went wrong fetching the weather. Try again.');
+      }
+      const data = await res.json();
+      renderWeather(data);
+    }catch(err){
+      showError(err.message || 'Network error — check your connection.');
+    }
+  }
+
+  function renderWeather(data){
+    const main = data.weather?.[0]?.main || '';
+    const desc = data.weather?.[0]?.description || '—';
+    const icon = data.weather?.[0]?.icon;
+
+    setSky(main);
+
+    $('dateLine').textContent = new Date().toLocaleDateString(undefined, {
+      weekday: 'long', month: 'short', day: 'numeric'
+    });
+    $('placeName').textContent = `${data.name}, ${data.sys?.country || ''}`;
+    $('tempValue').innerHTML = `${Math.round(data.main.temp)}<sup>°C</sup>`;
+    $('condIcon').textContent = iconMap[icon] || '🌡️';
+    $('condText').textContent = desc;
+    $('feelsLike').textContent = `feels like ${Math.round(data.main.feels_like)}°`;
+
+    $('humidity').textContent = `${data.main.humidity}%`;
+    $('wind').textContent = `${Math.round(data.wind.speed * 3.6)} km/h`;
+    $('pressure').textContent = `${data.main.pressure} hPa`;
+    $('visibility').textContent = data.visibility ? `${(data.visibility / 1000).toFixed(1)} km` : '—';
+    $('sunrise').textContent = data.sys?.sunrise ? fmtTime(data.sys.sunrise, data.timezone) : '—';
+    $('sunset').textContent = data.sys?.sunset ? fmtTime(data.sys.sunset, data.timezone) : '—';
+
+    showContent();
+  }
+
+  $('searchBtn').addEventListener('click', () => {
+    const city = $('cityInput').value.trim();
+    if(city) fetchWeather(city);
+  });
+  $('cityInput').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter'){
+      const city = $('cityInput').value.trim();
+      if(city) fetchWeather(city);
+    }
+  });
+
+  // Initial load
+  fetchWeather('Delhi');
+</script>
+
+</body>
+</html>
